@@ -133,8 +133,8 @@ void KK_RTC_Init(void) {
       .tm_mon = 7 - 1,
       .tm_mday = 23,
       .tm_hour = 12,
-      .tm_min = 20,
-      .tm_sec = 30,
+      .tm_min = 34,
+      .tm_sec = 00,
   };
   KK_RTC_SetTime(&time);
   HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR1, RTC_INIT_FLAG);
