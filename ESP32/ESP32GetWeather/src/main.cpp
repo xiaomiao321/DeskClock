@@ -53,17 +53,21 @@ void loop() {
         int endIndex = payload.indexOf("}]", startIndex);
         if (endIndex != -1) {
           String liveData = payload.substring(startIndex, endIndex + 1);
-        Serial.print("Live Data: ");
-        Serial.println(liveData);
+          Serial.print("Live Data: ");
+          Serial.println(liveData);
 
           String temperature = getValue(liveData, "\"temperature\":\"", "\"");
           String humidity = getValue(liveData, "\"humidity\":\"", "\"");
+          String fullReporttime = getValue(liveData, "\"reporttime\":\"", "\"");
+          // 提取 reporttime 的时间部分（hh:mm:ss）
+          String reporttime = fullReporttime.substring(11); // 跳过 "yyyy-mm-dd "
 
           String output = "{\n";
           output += "  \"temperature\": \"" + temperature + "\",\n";
-          output += "  \"humidity\": \"" + humidity + "\"\n";
+          output += "  \"humidity\": \"" + humidity + "\",\n";
+          output += "  \"reporttime\": \"" + reporttime + "\"\n";
           output += "}";
-         Serial.println("Sending: " + output+"to STM32F103");
+          Serial.println("Sending: " + output + " to STM32F103");
           Serial2.println(output); // 通过 UART2 发送到 STM32
         } else {
           Serial.println("Error: No closing '}]' found");
@@ -79,5 +83,5 @@ void loop() {
     Serial.println("WiFi Disconnected");
   }
 
-  delay(5000); 
+  delay(5000); // 每 5 秒发送一次
 }
