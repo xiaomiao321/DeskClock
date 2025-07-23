@@ -19,32 +19,33 @@ String getValue(String data, String key, String end) {
 
 void setup() {
   Serial2.begin(BAUD_RATE);
+  Serial.begin(BAUD_RATE);
 
   // 连接 WiFi
-  Serial2.println("Connecting to WiFi...");
+  Serial.println("Connecting to WiFi...");
   WiFi.begin(WIFI_SSID, WIFI_PASS);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    Serial2.print(".");
+    Serial.print(".");
   }
-  Serial2.println("\nWiFi Connected, IP: " + WiFi.localIP().toString());
+  Serial.println("\nWiFi Connected, IP: " + WiFi.localIP().toString());
 }
 
 void loop() {
-  Serial2.println("Loop started");
+  Serial.println("Loop started");
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
-    //Serial2.println("Starting HTTP request...");
+    Serial.println("Starting HTTP request...");
     http.begin(API_URL);
 
     int httpCode = http.GET();
-    //Serial2.print("HTTP Response Code: ");
-    //Serial2.println(httpCode);
+    Serial.print("HTTP Response Code: ");
+    Serial.println(httpCode);
 
     if (httpCode == HTTP_CODE_OK) {
       String payload = http.getString();
-      //Serial2.print("Raw Payload: ");
-      //Serial2.println(payload);
+      Serial.print("Raw Payload: ");
+      Serial.println(payload);
 
       int startIndex = payload.indexOf("\"lives\":[{");
       if (startIndex != -1) {
@@ -52,8 +53,8 @@ void loop() {
         int endIndex = payload.indexOf("}]", startIndex);
         if (endIndex != -1) {
           String liveData = payload.substring(startIndex, endIndex + 1);
-        //  Serial2.print("Live Data: ");
-        //  Serial2.println(liveData);
+        Serial.print("Live Data: ");
+        Serial.println(liveData);
 
           String temperature = getValue(liveData, "\"temperature\":\"", "\"");
           String humidity = getValue(liveData, "\"humidity\":\"", "\"");
@@ -62,21 +63,21 @@ void loop() {
           output += "  \"temperature\": \"" + temperature + "\",\n";
           output += "  \"humidity\": \"" + humidity + "\"\n";
           output += "}";
-         // Serial2.println("Sending: " + output);
-          Serial2.println(output); // 通过 UART0 发送到 STM32
+         Serial.println("Sending: " + output+"to STM32F103");
+          Serial2.println(output); // 通过 UART2 发送到 STM32
         } else {
-          Serial2.println("Error: No closing '}]' found");
+          Serial.println("Error: No closing '}]' found");
         }
       } else {
-        Serial2.println("Error: No 'lives' array found");
+        Serial.println("Error: No 'lives' array found");
       }
     } else {
-      Serial2.println("HTTP请求失败, 详情: " + http.errorToString(httpCode));
+      Serial.println("HTTP请求失败, 详情: " + http.errorToString(httpCode));
     }
     http.end();
   } else {
-    Serial2.println("WiFi Disconnected");
+    Serial.println("WiFi Disconnected");
   }
 
-  delay(60000); // 每分钟更新一次
+  delay(5000); 
 }
