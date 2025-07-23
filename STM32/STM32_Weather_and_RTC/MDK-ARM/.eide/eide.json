@@ -52,6 +52,15 @@
                   },
                   {
                     "path": "../Core/Src/stm32f1xx_hal_msp.c"
+                  },
+                  {
+                    "path": "../Lib/Src/font.c"
+                  },
+                  {
+                    "path": "../Lib/Src/myrtc.c"
+                  },
+                  {
+                    "path": "../Lib/Src/oled.c"
                   }
                 ],
                 "folders": []
@@ -125,6 +134,11 @@
             "folders": []
           }
         ]
+      },
+      {
+        "name": "::CMSIS",
+        "files": [],
+        "folders": []
       }
     ]
   },
@@ -180,8 +194,8 @@
               "tag": "IRAM",
               "id": 1,
               "mem": {
-                "startAddr": "",
-                "size": ""
+                "startAddr": "0x20000000",
+                "size": "0x2800"
               },
               "isChecked": true,
               "noInit": false
@@ -232,8 +246,8 @@
               "tag": "IROM",
               "id": 1,
               "mem": {
-                "startAddr": "",
-                "size": ""
+                "startAddr": "0x8000000",
+                "size": "0x8000"
               },
               "isChecked": true,
               "isStartup": true
@@ -245,7 +259,7 @@
                 "startAddr": "0x0",
                 "size": "0x0"
               },
-              "isChecked": true,
+              "isChecked": false,
               "isStartup": false
             }
           ]
@@ -273,9 +287,9 @@
           "../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy",
           "../Drivers/CMSIS/Device/ST/STM32F1xx/Include",
           "../Drivers/CMSIS/Include",
+          "../Lib/Inc",
           ".cmsis/include",
-          "RTE/_STM32_Weather_and_RTC",
-          "../Lib/Inc"
+          "RTE/_STM32_Weather_and_RTC"
         ],
         "libList": [],
         "defineList": [

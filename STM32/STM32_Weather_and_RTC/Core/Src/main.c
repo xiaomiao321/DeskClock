@@ -56,13 +56,15 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint8_t serial2_rxbuf[50];     // UART2 接收缓冲区，用于接收 ESP32 的天气数据
+uint8_t serial2_rxbuf[100];    // 增大缓冲区，容纳 JSON
 volatile uint8_t rx2_len = 0;  // UART2 接收数据长度
 volatile uint8_t rx2_flag = 0; // UART2 接收完成标志
-int temperature = -1;          // 存储解析后的温度值，-1 表示无效
-int humidity = -1;             // 存储解析后的湿度值，-1 表示无效
-char tempstr[20] = {0};
-char humidstr[20] = {0};
+int temperature = -1;          // 温度，-1 表示无效
+int humidity = -1;             // 湿度，-1 表示无效
+char tempstr[12] = {0};        // Temp:xxC
+char humidstr[12] = {0};       // Hum:xx%
+char reporttime[20] = "N/A";   // 天气 API 的 reporttime
+char short_rpt[9] = "N/A";     // 截断 reporttime 为 hh:mm:ss
 /* Private variables ---------------------------------------------------------*/
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
@@ -70,6 +72,7 @@ extern DMA_HandleTypeDef hdma_usart1_rx;
 extern DMA_HandleTypeDef hdma_usart1_tx;
 extern DMA_HandleTypeDef hdma_usart2_rx;
 extern DMA_HandleTypeDef hdma_usart2_tx;
+extern RTC_HandleTypeDef hrtc;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -82,72 +85,131 @@ void SystemClock_Config(void);
  * @param  temp: 存储解析后的温度值
  * @param  hum: 存储解析后的湿度值
  */
-void parseWeatherData(uint8_t *buffer, int *temp, int *hum) {
-  // 初始化为 -1，表示未解析到有效数据
+/**
+ * @brief  解析天气 JSON 数据，提取 temperature、humidity 和 reporttime
+ * @param  buffer: 接收到的 UART 数据缓冲区
+ * @param  temp: 存储解析后的温度值
+ * @param  hum: 存储解析后的湿度值
+ * @param  rpt: 存储解析后的 reporttime（yyyy-mm-dd hh:mm:ss）
+ */
+void parseWeatherData(uint8_t *buffer, int *temp, int *hum, char *rpt) {
   *temp = -1;
   *hum = -1;
+  strcpy(rpt, "N/A");
 
-  // 将缓冲区转换为字符串
   char *data = (char *)buffer;
 
-  // 查找 "temperature": " 字段（注意可能的空格或换行符）
   char *temp_start = strstr(data, "\"temperature\"");
   if (temp_start != NULL) {
-    temp_start += strlen("\"temperature\""); // 跳到键后
-    // 跳过可能的空格、冒号或换行符
+    temp_start += strlen("\"temperature\"");
     while (*temp_start == ' ' || *temp_start == ':' || *temp_start == '\n') {
       temp_start++;
     }
-    if (*temp_start == '"') {                   // 确认值以引号开始
-      temp_start++;                             // 跳过开引号
-      char *temp_end = strchr(temp_start, '"'); // 查找结束引号
+    if (*temp_start == '"') {
+      temp_start++;
+      char *temp_end = strchr(temp_start, '"');
       if (temp_end != NULL && (temp_end - temp_start) < 10) {
-        // 提取温度值到临时缓冲区
         char temp_str[10];
         strncpy(temp_str, temp_start, temp_end - temp_start);
         temp_str[temp_end - temp_start] = '\0';
-        // 验证是否为有效数字
         char *p = temp_str;
         while (*p) {
           if (!isdigit(*p))
-            break; // 非数字字符
+            break;
           p++;
         }
-        if (*p == '\0' && temp_str[0] != '\0') { // 确认是有效数字字符串
+        if (*p == '\0' && temp_str[0] != '\0') {
           *temp = atoi(temp_str);
         }
       }
     }
   }
 
-  // 查找 "humidity": " 字段
   char *hum_start = strstr(data, "\"humidity\"");
   if (hum_start != NULL) {
-    hum_start += strlen("\"humidity\""); // 跳到键后
-    // 跳过可能的空格、冒号或换行符
+    hum_start += strlen("\"humidity\"");
     while (*hum_start == ' ' || *hum_start == ':' || *hum_start == '\n') {
       hum_start++;
     }
-    if (*hum_start == '"') {                  // 确认值以引号开始
-      hum_start++;                            // 跳过开引号
-      char *hum_end = strchr(hum_start, '"'); // 查找结束引号
+    if (*hum_start == '"') {
+      hum_start++;
+      char *hum_end = strchr(hum_start, '"');
       if (hum_end != NULL && (hum_end - hum_start) < 10) {
-        // 提取湿度值到临时缓冲区
         char hum_str[10];
         strncpy(hum_str, hum_start, hum_end - hum_start);
         hum_str[hum_end - hum_start] = '\0';
-        // 验证是否为有效数字
         char *p = hum_str;
         while (*p) {
           if (!isdigit(*p))
-            break; // 非数字字符
+            break;
           p++;
         }
-        if (*p == '\0' && hum_str[0] != '\0') { // 确认是有效数字字符串
+        if (*p == '\0' && hum_str[0] != '\0') {
           *hum = atoi(hum_str);
         }
       }
     }
+  }
+
+  char *rpt_start = strstr(data, "\"reporttime\"");
+  if (rpt_start != NULL) {
+    rpt_start += strlen("\"reporttime\"");
+    while (*rpt_start == ' ' || *rpt_start == ':' || *rpt_start == '\n') {
+      rpt_start++;
+    }
+    if (*rpt_start == '"') {
+      rpt_start++;
+      char *rpt_end = strchr(rpt_start, '"');
+      if (rpt_end != NULL && (rpt_end - rpt_start) < 20) {
+        strncpy(rpt, rpt_start, rpt_end - rpt_start);
+        rpt[rpt_end - rpt_start] = '\0';
+      }
+    }
+  }
+}
+/**
+ * @brief  解析 NTP JSON 数据，提取 ntptime
+ * @param  buffer: 接收到的 UART 数据缓冲区
+ * @param  ntptime: 存储解析后的 ntptime（yyyy-mm-dd hh:mm:ss）
+ */
+void parseNTPTime(uint8_t *buffer, char *ntptime) {
+  strcpy(ntptime, "N/A");
+
+  char *data = (char *)buffer;
+
+  // 查找 "ntptime": " 字段
+  char *ntp_start = strstr(data, "\"ntptime\"");
+  if (ntp_start != NULL) {
+    ntp_start += strlen("\"ntptime\"");
+    while (*ntp_start == ' ' || *ntp_start == ':' || *ntp_start == '\n') {
+      ntp_start++;
+    }
+    if (*ntp_start == '"') {
+      ntp_start++;
+      char *ntp_end = strchr(ntp_start, '"');
+      if (ntp_end != NULL && (ntp_end - ntp_start) < 20) {
+        strncpy(ntptime, ntp_start, ntp_end - ntp_start);
+        ntptime[ntp_end - ntp_start] = '\0';
+      }
+    }
+  }
+}
+/**
+ * @brief  使用 ntptime 更新 RTC
+ * @param  ntptime: 格式为 yyyy-mm-dd hh:mm:ss 的字符串
+ */
+void updateRTC(const char *ntptime) {
+  if (strcmp(ntptime, "N/A") == 0) {
+    return;
+  }
+
+  int year, month, day, hour, minute, second;
+  if (sscanf(ntptime, "%d-%d-%d %d:%d:%d", &year, &month, &day, &hour, &minute,
+             &second) == 6) {
+    // second += 5;
+    RTC_SetTime(year, month, day, hour, minute, second);
+  } else {
+    printf("Invalid ntptime format: %s\r\n", ntptime);
   }
 }
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
@@ -258,24 +320,55 @@ int main(void) {
 
     //  检查 UART2 接收到的天气数据
     if (rx2_flag) {
-      serial2_rxbuf[rx2_len] = '\0'; // 添加字符串终止符
-      // 解析接收到的 JSON 数据
-      parseWeatherData(serial2_rxbuf, &temperature, &humidity);
-      // 通过 UART1 输出解析后的温度和湿度到电脑
-      // if (temperature != -1 && humidity != -1) {
-      //   printf("Temperature: %d°C, Humidity: %d%%\r\n", temperature,
-      //   humidity);
-      // } else {
-      //   printf("Temperature: N/A°C, Humidity: N/A%%\r\n");
-      // }
-      rx2_flag = 0; // 清除标志
+      serial2_rxbuf[rx2_len] = '1';
+      printf("Received: %s\r\n", serial2_rxbuf);
+
+      // 判断 JSON 类型
+      if (strstr((char *)serial2_rxbuf, "\"ntptime\"") != NULL) {
+        char ntptime[20] = "N/A";
+        parseNTPTime(serial2_rxbuf, ntptime);
+        if (strcmp(ntptime, "N/A") != 0) {
+          updateRTC(ntptime);
+        } else {
+          printf("Parse failed: 'ntptime' invalid\r\n");
+        }
+      } else if (strstr((char *)serial2_rxbuf, "\"temperature\"") != NULL) {
+        parseWeatherData(serial2_rxbuf, &temperature, &humidity, reporttime);
+        if (temperature == -1 || humidity == -1 ||
+            strcmp(reporttime, "N/A") == 0) {
+          printf("Parse failed: ");
+          if (strstr((char *)serial2_rxbuf, "\"temperature\"") == NULL) {
+            printf("'temperature' not found; ");
+          }
+          if (strstr((char *)serial2_rxbuf, "\"humidity\"") == NULL) {
+            printf("'humidity' not found; ");
+          }
+          if (strstr((char *)serial2_rxbuf, "\"reporttime\"") == NULL) {
+            printf("'reporttime' not found");
+          }
+          printf("\r\n");
+        }
+      } else {
+        printf("Unknown JSON format\r\n");
+      }
+      rx2_flag = 0;
     }
-    sprintf(tempstr, "Temperature:%d °C", temperature);
-    sprintf(humidstr, "Humidity:%d %%", humidity);
+
+    // 截断 reporttime 为 hh:mm:ss
+    if (strcmp(reporttime, "N/A") == 0 || strlen(reporttime) < 19) {
+      strcpy(short_rpt, "N/A");
+    } else {
+      strncpy(short_rpt, reporttime + 11, 8);
+      short_rpt[8] = '\0';
+    }
+
+    sprintf(tempstr, "Temp:%d °C", temperature);
+    sprintf(humidstr, "Hum:%d %%", humidity);
     OLED_NewFrame();
     OLED_PrintASCIIString(20, 50, datestr, &afont8x6, OLED_COLOR_NORMAL);
     OLED_PrintASCIIString(32, 30, str, &afont16x8, OLED_COLOR_NORMAL);
     OLED_PrintASCIIString(0, 0, tempstr, &afont8x6, OLED_COLOR_NORMAL);
+    OLED_PrintASCIIString(0, 10, short_rpt, &afont8x6, OLED_COLOR_NORMAL);
     OLED_PrintASCIIString(0, 20, humidstr, &afont8x6, OLED_COLOR_NORMAL);
     OLED_ShowFrame();
     HAL_Delay(1000); // 每秒检查一次

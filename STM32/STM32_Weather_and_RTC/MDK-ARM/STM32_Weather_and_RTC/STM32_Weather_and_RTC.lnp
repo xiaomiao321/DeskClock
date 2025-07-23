@@ -27,7 +27,7 @@
 "stm32_weather_and_rtc\stm32f1xx_hal_rtc_ex.o"
 "stm32_weather_and_rtc\stm32f1xx_hal_uart.o"
 "stm32_weather_and_rtc\system_stm32f1xx.o"
---strict --scatter "STM32_Weather_and_RTC\STM32_Weather_and_RTC.sct"
+--library_type=microlib --strict --scatter "STM32_Weather_and_RTC\STM32_Weather_and_RTC.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers
 --list "STM32_Weather_and_RTC.map" -o STM32_Weather_and_RTC\STM32_Weather_and_RTC.axf

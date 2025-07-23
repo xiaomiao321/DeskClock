@@ -109,14 +109,6 @@ int main(void) {
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1) {
-    // cnt++;
-    // if (cnt == 30) {
-    //   cnt = 0;
-    //   OLED_PrintASCIIString(0, 50, "resetting...", &afont8x6,
-    //                         OLED_COLOR_NORMAL);
-    //   HAL_Delay(3000);
-    //   RTC_SetTime(2025, 3, 2, 5, 3, 2);
-    // }
     RTC_DateTimeTypeDef calendar;
     RTC_GetTime(&calendar);
     uint32_t total_second_day =
